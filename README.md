@@ -1,3 +1,24 @@
+# PSAdx Module
+The PSAdx module will allow one to automate the extraction, analysis, and output formatting of data stored in Azure Data Explorer (ADX).
+
+## Installation
+For this 
+
+## Concepts
+Though you can merely use the module to execute KQL queries via PowerShell, concepts have been created to allow you to create custom output of multiple queries in a single call.  This is achieved via the concept of an AnalysisPack which is instantiated by calling the cmdlet `Invoke-PSAdxAnalysisPack`.
+### AnalysisPack
+The AnalysisPack is the primary object with which you will interact.  The AnalysisPack is technically a specific folder structure that contains the queries, templates, and custom script to process the data.
+### Query
+A Query is the lifeblood of the AnalysisPack.  Practically, the Query is simply a Kusto Query Language (KQL) query file stored in the "queries" subfolder of the AnalysisPack as a .csl file.  A query can have parameters passed to it by utilizing `declare query_parameters(<variable_name>:<data_type>);` at the beginning of the query.
+### Template
+A Template is an optional feature of an AnalysisPack which can be utilized when creating your the output.  Templates would typically be used for output types for which a formatted, baseline template has been created for which only data sets need to be injected to create the final output.  Excel output is the primary example for utilizing a Template, but
+### Connection
+Inside the AnalysisPack, you must define the full list of possible connections available to the analysis pack.  When a user calls Invoke-PSAdxAnalysisPack cmdlet, the optional -TargetConnection parameter is pulled from and validated against this definition.  You can then use the the -TargetConnection in your custom analysis script to only run scripts against a particular connection(s).  If no parameter is specified, Invoke-PSAdxAnalysisPack will pass all connections defined in the AnalysisPack.
+### Custom analysis
+The power of the AnalysisPack is in the ability for you, as an AnalysisPack author, to create a custom extension by which to process the queries, utilize templates, and generate the output desired.  This capability is exposed via the Analyze method of the AnalysisPack object.  This method is automatically called upon execution of Invoke-PSAdxAnalysisPack, but can be called again if the returned object is stored in a variable.
+
+## Create your own AnalysisPack
+Coming soon . . .
 
 # Contributing
 
