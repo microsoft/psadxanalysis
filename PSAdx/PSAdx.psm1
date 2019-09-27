@@ -1,4 +1,4 @@
-[System.Reflection.Assembly]::LoadFrom("$PSScriptRoot\bin\Kusto.Data.dll") | Out-Null
+[System.Reflection.Assembly]::LoadFrom( $(Join-Path -Path $PSScriptRoot -ChildPath "\bin\Kusto.Data.dll")) | Out-Null
 
 function PSLogger {
     param (
