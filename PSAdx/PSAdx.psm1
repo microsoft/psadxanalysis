@@ -240,7 +240,7 @@ function Get-PSAdxCSLParameter {
 
     process{
         try {
-            $regMatches = ((Get-Content -Path $Path | Select-String "^declare query_parameters.*").Matches[0].Value | Select-String -Pattern "(\w*):\w*" -ErrorAction SilentlyContinue)
+            $regMatches = ((Get-Content -Path $Path | Select-String "^declare query_parameters.*").Matches[0].Value | Select-String -Pattern "(\w*):\w*" -AllMatches -ErrorAction SilentlyContinue)
             foreach ($item in $regMatches.Matches.Groups)
             {
                 if ($item.Value -notmatch "(\(|\)|\,|\:|\^|\"")") 
