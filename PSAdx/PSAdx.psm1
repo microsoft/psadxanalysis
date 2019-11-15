@@ -60,7 +60,7 @@ function Invoke-PSAdxAnalysisPack {
         }
         #Region Parameter
         $RegionAttribute = New-Object System.Management.Automation.ParameterAttribute
-        $RegionAttribute.Mandatory = $false
+        $RegionAttribute.Mandatory = $true
         $regionAttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute]
         $regionAttributeCollection.Add($RegionAttribute)
         # Generate and set the ValidateSet
