@@ -1,5 +1,87 @@
 [System.Reflection.Assembly]::LoadFrom( $(Join-Path -Path $PSScriptRoot -ChildPath "\bin\Kusto.Data.dll")) | Out-Null
 
+class AnalysisPack {
+    [string]$AnalysisPackPath
+    [string]$ReferenceId
+    [AdxTarget[]]$AvailableConnection
+    [AnalysisPackDataSet[]]$DataSet
+    [AnalysisParameter[]]$Parameter
+    [string]$ConnectionFilePath
+    [string[]]$AvailableTemplate
+    [string]$TemplateFolderPath
+    [string]$QueryFolderPath
+    [string]$AnalysisScriptPath
+
+    AnalysisPack([string]$Path, [string]$Reference, [string[]]$Parameter) {
+        #Set Initials
+        $this.AnalysisPackPath = $Path
+        $this.TemplateFolderPath = Join-Path -Path $this.AnalysisPackPath -ChildPath "templates"
+        $this.QueryFolderPath = Join-Path -Path $this.AnalysisPackPath -ChildPath "queries"
+        $this.ConnectionFilePath = Join-Path -Path $this.AnalysisPackPath -ChildPath "userconnections.xml"
+        $this.AnalysisScriptPath = Join-Path -Path $this.AnalysisPackPath -ChildPath "analysis.ps1"
+
+
+        $this.ReadConnectionFile
+    }
+
+    [void]ReadConnectionFile() {
+        $ConnectionsFile = Join-Path -Path $this.AnalysisPackPath -ChildPath $this.ConnectionFileName
+        $FoundConnections = New-Object -TypeName System.Collections.ArrayList
+        try {
+            foreach ($item in ([xml](Get-Content -Raw -Path $ConnectionsFile).ArrayOfServerDescriptionBase.ServerDescriptionBase)) {
+                $Connection = New-Object -TypeName AdxTarget($item.Name, $item.ConnectionString)
+                $FoundConnections.Add($Connection) | Out-Null
+            }
+            this.$AvailableConnection = $FoundConnections.ToArray()
+        }
+        catch {
+            Write-Error "Unable to process connections file $ConnectionsFile"
+        }
+        Remove-Variable -Name ConnectionsFile, FoundConnections -Force -ErrorAction SilentlyContinue
+    }
+}
+
+    class AdxTarget {
+        [string]$Name
+        [string]$ConnectionString
+        [string]$Catalog
+
+        AdxTarget([string]$N, [string]$C) {
+            $this.Name = $N
+            $this.ConnectionString = $C
+            $this.Catalog = (this.ConnectionString | Select-String -Pattern "Catalog\=(\w*)").Matches.Groups[1].Value
+        }
+    }
+
+class AnalysisPackDataSet {
+    [string]$Name
+    [AnalysisParameter[]]$Parameter
+    [string]$Content
+    [string]$Path
+
+    AnalysisPackDataSet([string]$CslPath) {
+        $Parameters = New-Object -TypeName System.Collections.ArrayList
+        $this.Content = Get-Content -Raw -Path $CslPath -ErrorAction Stop
+        $this.Path = $CslPath
+        $this.Name = (Get-Item -Path $this.Path).BaseName
+        $regMatches = ((Get-Content -Path $this.Path | Select-String "^declare query_parameters.*").Matches[0].Value | Select-String -Pattern "(\w*):\w*" -AllMatches -ErrorAction SilentlyContinue)
+        foreach ($item in $regMatches.Matches.Groups) {
+            if ($item.Value -notmatch "(\(|\)|\,|\:|\^|\"")") {
+                $Param = New-Object -TypeName AnalysisParameter
+                $Param.Name = [string]($item.Value).Trim()
+                $Parameters.Add($Param) | Out-Null   
+            }
+        }
+        $this.Parameter = $Parameters.ToArray()
+        Remove-Variable -Name Parameters, regMatches -Force -ErrorAction SilentlyContinue
+    }
+}
+
+class AnalysisParameter {
+    [string]$Name
+    [string]$Value
+}
+
 function PSLogger {
     param (
         # The file that will recieve the log event
@@ -37,7 +119,7 @@ function PSLogger {
 #$x.Analyze();
 ##############################
 function Invoke-PSAdxAnalysisPack {
-    [CmdletBinding(DefaultParametersetName="Command")]
+    [CmdletBinding()]
     param (
         [string]$AnalysisPackPath
         ,[string]$ReferenceId
