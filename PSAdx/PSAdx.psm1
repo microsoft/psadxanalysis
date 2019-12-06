@@ -10,7 +10,6 @@ class AnalysisPack {
     [string[]]$AvailableTemplate
     [string]$TemplateFolderPath
     [string]$QueryFolderPath
-    [string]$AnalysisScriptPath
 
     AnalysisPack([string]$Path, [string]$Reference, [string[]]$Parameter) {
         #Set Initials
@@ -18,7 +17,6 @@ class AnalysisPack {
         $this.TemplateFolderPath = Join-Path -Path $this.AnalysisPackPath -ChildPath "templates"
         $this.QueryFolderPath = Join-Path -Path $this.AnalysisPackPath -ChildPath "queries"
         $this.ConnectionFilePath = Join-Path -Path $this.AnalysisPackPath -ChildPath "userconnections.xml"
-        $this.AnalysisScriptPath = Join-Path -Path $this.AnalysisPackPath -ChildPath "analysis.ps1"
 
 
         $this.ReadConnectionFile
@@ -38,6 +36,15 @@ class AnalysisPack {
             Write-Error "Unable to process connections file $ConnectionsFile"
         }
         Remove-Variable -Name ConnectionsFile, FoundConnections -Force -ErrorAction SilentlyContinue
+    }
+
+    [void]ReadTemplateFolder() {
+        if (Test-Path -Path (Join-Path -Path $this.AnalysisPackPath -ChildPath "templates") -PathType Container) {
+            $outputObject | Add-Member -NotePropertyName "TemplatesFolder" -NotePropertyValue $true;
+        }
+        else {
+            $outputObject | Add-Member -NotePropertyName "TemplatesFolder" -NotePropertyValue $false;
+        }
     }
 }
 
@@ -62,7 +69,7 @@ class AnalysisPackDataSet {
     AnalysisPackDataSet([string]$CslPath) {
         $Parameters = New-Object -TypeName System.Collections.ArrayList
         $this.Content = Get-Content -Raw -Path $CslPath -ErrorAction Stop
-        $this.Path = $CslPath
+        $this.Path = (Resolve-Path -Path $CslPath).Path
         $this.Name = (Get-Item -Path $this.Path).BaseName
         $regMatches = ((Get-Content -Path $this.Path | Select-String "^declare query_parameters.*").Matches[0].Value | Select-String -Pattern "(\w*):\w*" -AllMatches -ErrorAction SilentlyContinue)
         foreach ($item in $regMatches.Matches.Groups) {
