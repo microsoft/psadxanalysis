@@ -82,7 +82,7 @@ class AdxTarget {
 
 class AnalysisPackDataSet {
     [string]$Name
-    [AnalysisParameter[]]$Parameter
+    [string[]]$Parameter
     [string]$Content
     [string]$Path
 
@@ -94,23 +94,19 @@ class AnalysisPackDataSet {
         $regMatches = ((Get-Content -Path $this.Path | Select-String "^declare query_parameters.*").Matches[0].Value | Select-String -Pattern "(\w*):\w*" -AllMatches -ErrorAction SilentlyContinue)
         foreach ($item in $regMatches.Matches.Groups) {
             if ($item.Value -notmatch "(\(|\)|\,|\:|\^|\"")") {
-                $Param = New-Object -TypeName AnalysisParameter
-                $Param.Name = [string]($item.Value).Trim()
-                $Parameters.Add($Param) | Out-Null   
+                $Parameters.Add([string]($item.Value).Trim()) | Out-Null   
             }
         }
+        $this.Parameter = $Parameters.ToArray()
         Remove-Variable -Name Parameters, regMatches -Force -ErrorAction SilentlyContinue
     }
 
-    [Kusto.Cloud.Platform.Data.ExtendedDataReader] ExecuteQuery([AdxTarget] $Target) {
-        return = InvokeQuery($Target, $this.Parameters)
-    }
-
+    #Error Checking
     [Kusto.Cloud.Platform.Data.ExtendedDataReader] ExecuteQuery([AdxTarget] $Target, [AnalysisParameter[]]$Parameters) {
         return = InvokeQuery($Target, $Parameters)
     }
 
-    hidden [string] InvokeQuery([AdxTarget]$Target, [AnalysisParameter]$Parameters) {
+    hidden [System.Data.DataTable] InvokeQuery([AdxTarget]$Target, [AnalysisParameter]$Parameters) {
         $kcsb = New-Object Kusto.Data.KustoConnectionStringBuilder ($ConnectionString, $(($ConnectionString | Select-String -Pattern "Catalog\=(\w*)").Matches.Groups[1].Value))
         $queryProvider = [Kusto.Data.Net.Client.KustoClientFactory]::CreateCslQueryProvider($kcsb);
         # Configure properties
@@ -125,8 +121,7 @@ class AnalysisPackDataSet {
         $reader = $queryProvider.ExecuteQuery($Query, $crp)
         $dataTable = [Kusto.Cloud.Platform.Data.ExtendedDataReader]::ToDataSet($reader).Tables
 
-        #return $dataTable
-        return ""
+        return $dataTable
     }
 }
 
