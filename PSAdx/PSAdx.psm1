@@ -5,7 +5,6 @@ class AnalysisPack {
     [string]$ReferenceId
     [AdxTarget[]]$AvailableConnection
     [AnalysisPackDataSet[]]$DataSet
-    [AnalysisParameter[]]$Parameter
     [string]$ConnectionFilePath
     [string[]]$AvailableTemplate
     [string]$TemplateFolderPath
@@ -18,47 +17,68 @@ class AnalysisPack {
         $this.QueryFolderPath = Join-Path -Path $this.AnalysisPackPath -ChildPath "queries"
         $this.ConnectionFilePath = Join-Path -Path $this.AnalysisPackPath -ChildPath "userconnections.xml"
 
-
-        $this.ReadConnectionFile
+        $this.ReadConnectionFile()
+        $this.ReadTemplateFolder()
+        $this.ReadQueryFolder()
     }
 
     [void]ReadConnectionFile() {
-        $ConnectionsFile = Join-Path -Path $this.AnalysisPackPath -ChildPath $this.ConnectionFileName
         $FoundConnections = New-Object -TypeName System.Collections.ArrayList
         try {
-            foreach ($item in ([xml](Get-Content -Raw -Path $ConnectionsFile).ArrayOfServerDescriptionBase.ServerDescriptionBase)) {
+            foreach ($item in ([xml](Get-Content -Raw -Path $this.AnalysisPackPath -ErrorAction Stop).ArrayOfServerDescriptionBase.ServerDescriptionBase)) {
                 $Connection = New-Object -TypeName AdxTarget($item.Name, $item.ConnectionString)
                 $FoundConnections.Add($Connection) | Out-Null
             }
             this.$AvailableConnection = $FoundConnections.ToArray()
         }
         catch {
-            Write-Error "Unable to process connections file $ConnectionsFile"
+            Write-Error "Unable to process connections file $($this.ConnectionsFilePath)"
         }
-        Remove-Variable -Name ConnectionsFile, FoundConnections -Force -ErrorAction SilentlyContinue
+        Remove-Variable -Name FoundConnections -Force -ErrorAction SilentlyContinue
     }
 
     [void]ReadTemplateFolder() {
-        if (Test-Path -Path (Join-Path -Path $this.AnalysisPackPath -ChildPath "templates") -PathType Container) {
-            $outputObject | Add-Member -NotePropertyName "TemplatesFolder" -NotePropertyValue $true;
+        $FoundTemplates = New-Object -TypeName System.Collections.ArrayList
+        try {
+            foreach ($item in (Get-ChildItem -Path $this.TemplateFolderPath)) {
+                $FoundTemplates.Add($item.FullName) | Out-Null
+            }
+            $this.AvailableTemplate = $FoundTemplates.ToArray()
         }
-        else {
-            $outputObject | Add-Member -NotePropertyName "TemplatesFolder" -NotePropertyValue $false;
+        Catch {
+            Write-Error "Unable to get templates in folder $($this.TemplateFolderPath)"
         }
+        Remove-Variable -Name FoundTemplates -ErrorAction SilentlyContinue
     }
+
+    [void]ReadQueryFolder() {
+        $FoundQueries = New-Object -TypeName System.Collections.ArrayList
+        try {
+            foreach ($item in (Get-ChildItem -Path $this.QueryFolderPath)) {
+                $CslFile = New-Object -TypeName AnalysisPackDataSet($item.FullName)
+                $FoundQueries.Add($CslFile) | Out-Null
+            }
+            $this.DataSet = $FoundQueries.ToArray()
+        }
+        Catch {
+            Write-Error "Unable to get templates in folder $($this.QueryFolderPath)"
+        }
+        Remove-Variable -Name FoundQueries -ErrorAction SilentlyContinue
+    }
+
 }
 
-    class AdxTarget {
-        [string]$Name
-        [string]$ConnectionString
-        [string]$Catalog
+class AdxTarget {
+    [string]$Name
+    [string]$ConnectionString
+    [string]$Catalog
 
-        AdxTarget([string]$N, [string]$C) {
-            $this.Name = $N
-            $this.ConnectionString = $C
-            $this.Catalog = (this.ConnectionString | Select-String -Pattern "Catalog\=(\w*)").Matches.Groups[1].Value
-        }
+    AdxTarget([string]$N, [string]$C) {
+        $this.Name = $N
+        $this.ConnectionString = $C
+        $this.Catalog = (this.ConnectionString | Select-String -Pattern "Catalog\=(\w*)").Matches.Groups[1].Value
     }
+}
 
 class AnalysisPackDataSet {
     [string]$Name
@@ -79,8 +99,34 @@ class AnalysisPackDataSet {
                 $Parameters.Add($Param) | Out-Null   
             }
         }
-        $this.Parameter = $Parameters.ToArray()
         Remove-Variable -Name Parameters, regMatches -Force -ErrorAction SilentlyContinue
+    }
+
+    [Kusto.Cloud.Platform.Data.ExtendedDataReader] ExecuteQuery([AdxTarget] $Target) {
+        return = InvokeQuery($Target, $this.Parameters)
+    }
+
+    [Kusto.Cloud.Platform.Data.ExtendedDataReader] ExecuteQuery([AdxTarget] $Target, [AnalysisParameter[]]$Parameters) {
+        return = InvokeQuery($Target, $Parameters)
+    }
+
+    hidden [string] InvokeQuery([AdxTarget]$Target, [AnalysisParameter]$Parameters) {
+        $kcsb = New-Object Kusto.Data.KustoConnectionStringBuilder ($ConnectionString, $(($ConnectionString | Select-String -Pattern "Catalog\=(\w*)").Matches.Groups[1].Value))
+        $queryProvider = [Kusto.Data.Net.Client.KustoClientFactory]::CreateCslQueryProvider($kcsb);
+        # Configure properties
+        $crp = New-Object Kusto.Data.Common.ClientRequestProperties;
+        $crp.ClientRequestId = "MyPowershellScript.ExecuteQuery." + [Guid]::NewGuid().ToString();
+        $crp.SetOption([Kusto.Data.Common.ClientRequestProperties]::OptionServerTimeout, [TimeSpan]::FromSeconds(300));
+        foreach($key in $QueryParameters.keys) {
+            $crp.SetParameter($key, $QueryParameters[$key])
+        };
+
+        #Execute the query
+        $reader = $queryProvider.ExecuteQuery($Query, $crp)
+        $dataTable = [Kusto.Cloud.Platform.Data.ExtendedDataReader]::ToDataSet($reader).Tables
+
+        #return $dataTable
+        return ""
     }
 }
 
