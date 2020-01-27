@@ -80,7 +80,7 @@ function Invoke-PSAdxAnalysisPack {
             $templateAttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute]
             $templateAttributeCollection.Add($TemplateAttribute)
             # Generate and set the ValidateSet
-            $templateSet = Get-ChildItem (Join-Path -Path $AnalysisPackPath -Child "templates");
+            $templateSet = (Get-ChildItem (Join-Path -Path $AnalysisPackPath -Child "templates")).Name;
             $templateValidateSetAttribute = New-Object System.Management.Automation.ValidateSetAttribute($templateSet)
             $templateAttributeCollection.Add($templateValidateSetAttribute)
             $templateParamItem = New-Object System.Management.Automation.RuntimeDefinedParameter('Template', [string[]], $templateAttributeCollection)
